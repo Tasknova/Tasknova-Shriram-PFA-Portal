@@ -183,7 +183,7 @@ export async function POST(
       let rowStatus: 'initiated' | 'failed' = 'failed'
       let errorMsg: string | null = null
 
-      let maxRetries = 5;
+      const maxRetries = 5;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const response = await fetch('https://developer.induslabs.io/api/calls/click2call', {

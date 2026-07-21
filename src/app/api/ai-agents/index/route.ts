@@ -32,7 +32,7 @@ export async function GET() {
       }
 
       const filteredBasicAgents = (agents || []).filter(
-        (agent: any) => isShriramPFAAgent(agent.name)
+        (agent: { name: string }) => isShriramPFAAgent(agent.name)
       )
 
       const response = NextResponse.json({
@@ -43,7 +43,7 @@ export async function GET() {
     }
 
     const filteredAgents = (enrichedAgents || []).filter(
-      (agent: any) => isShriramPFAAgent(agent.name)
+      (agent: { name: string }) => isShriramPFAAgent(agent.name)
     )
 
     const response = NextResponse.json({

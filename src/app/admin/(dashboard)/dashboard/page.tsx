@@ -11,7 +11,7 @@ export default function DashboardPage() {
     <div className="space-y-8 animate-fade-in">
       <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
         <h1 className="text-4xl font-bold mb-2">Platform Dashboard</h1>
-        <p className="text-primary-100 text-lg">Welcome back! Here's your calling overview</p>
+        <p className="text-primary-100 text-lg">Welcome back! Here&apos;s your calling overview</p>
       </div>
 
       {/* Tab Navigation */}

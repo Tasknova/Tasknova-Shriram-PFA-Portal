@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { ChevronRight, Play, Plus, Upload, X, AlertCircle, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
 import { SHRIRAM_PFA_DIDS, isShriramPFAAgent } from '@/lib/aiAgentsUtils'
+import Link from 'next/link'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -563,7 +564,6 @@ function CampaignDetailView({ campaign, onBack }: { campaign: Campaign; onBack: 
                 {calls.map((row, idx) => {
                   const call = row.ai_calls
                   const eval0 = call?.ai_evaluations?.[0]
-                  const transcript0 = call?.ai_transcripts?.[0]
                   const score = eval0?.overall_score ?? eval0?.score
                   return (
                     <tr key={row.id} className="hover:bg-gray-50">

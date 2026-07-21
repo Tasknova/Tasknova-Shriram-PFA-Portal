@@ -4,22 +4,10 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { 
   LayoutDashboard, 
-  FileText, 
-  MessageSquare, 
-  Phone, 
-  Briefcase, 
-  Users, 
-  BookOpen, 
-  Library, 
-  FileCheck,
   Shield,
   LogOut,
   Menu,
   X,
-  Brain,
-  FolderKanban,
-  ClipboardList,
-  BrainCircuit,
   Wand2,
   PhoneCall
 } from 'lucide-react'
