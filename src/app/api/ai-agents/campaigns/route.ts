@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       name: string
       agent_id: string
       contacts: Array<{ name: string; phone: string }>
+      did?: string
     }
 
     const { name, agent_id, contacts, did } = body
