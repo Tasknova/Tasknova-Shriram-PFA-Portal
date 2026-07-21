@@ -294,7 +294,7 @@ async function analyzeTranscript(args: {
     '  "call_summary": string,',
     '  "customer_intent": string,',
     '  "lead_status": "Interested" | "Not Interested" | "Follow-up Required" | "Callback Requested",',
-    '  "meeting_datetime": string | null, // ISO or human-readable datetime if a meeting was mentioned in the conversation, otherwise null',
+    '  "meeting_datetime": string | null, // If the user specifies a relative date like "today" or "tomorrow", output EXACTLY the relative phrase (e.g., "Tomorrow 12:00 PM"). Do NOT output arbitrary absolute dates or ISO strings if they are not explicitly mentioned.',
     '  "meeting_location": string | null, // Address or location mentioned for the meeting, otherwise null',
     '  "main_discussion_points": string[],',
 
@@ -330,6 +330,7 @@ async function analyzeTranscript(args: {
     `Customer number: ${args.customerNumber || 'Unknown'}`,
     `Call duration in seconds: ${args.duration ?? 'Unknown'}`,
     `Existing outcome if any: ${args.existingOutcome || 'Unknown'}`,
+    `Current date and time: ${new Date().toLocaleString()}`,
     '',
     'Conversation transcript:',
     args.transcriptText,
