@@ -166,7 +166,7 @@ export default function LogsTab() {
           </div>
         ) : logs.length === 0 ? (
           <div className="py-16 text-center text-gray-400 text-sm">
-            No completed calls found{filterCallId ? ` matching "${filterCallId}"` : ''}.
+            No calls found{filterCallId ? ` matching "${filterCallId}"` : ''}.
           </div>
         ) : (
           <div className="divide-y divide-gray-100">

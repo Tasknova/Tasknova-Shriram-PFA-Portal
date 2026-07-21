@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
     let query = client
       .from('ai_calls')
       .select('call_id, recording_url, status, created_at, updated_at')
-      // Only show calls that have actually completed (webhook was received)
-      .eq('status', 'completed')
+      // Show all calls that have a call_id, even if not completed
+      .not('call_id', 'is', null)
 
     if (callId) {
       query = query.ilike('call_id', `%${callId}%`)
