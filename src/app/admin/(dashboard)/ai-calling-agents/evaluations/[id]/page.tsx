@@ -291,6 +291,29 @@ export default function EvaluationDetailPage() {
             <div className="space-y-5">
               <TextBlock label="Call Summary" value={evaluation.call_summary} />
               <TextBlock label="Customer Intent" value={evaluation.customer_intent} />
+
+              {/* ── Lead Status Section ─────────────────────────────────── */}
+              {evaluation.lead_status && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Lead Status</p>
+                  <div className="flex flex-wrap gap-3 items-start">
+                    <LeadStatusBadge status={evaluation.lead_status} />
+                    {evaluation.meeting_datetime && (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">Meeting Date &amp; Time</span>
+                        <span className="text-sm font-medium text-gray-800">{evaluation.meeting_datetime}</span>
+                      </div>
+                    )}
+                    {evaluation.meeting_location && (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">Address / Location</span>
+                        <span className="text-sm font-medium text-gray-800">{evaluation.meeting_location}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <ListBlock label="Main Discussion Points" items={toStringArray(evaluation.main_discussion_points)} />
               <TextBlock label="Call Outcome" value={evaluation.call_outcome || evaluation.ai_calls?.outcome || null} />
               <ListBlock label="What Went Well" items={toStringArray(evaluation.strengths)} />
@@ -391,5 +414,21 @@ function ScoreRow({ label, value }: { label: string; value: number | null | unde
         {typeof value === 'number' ? value.toFixed(0) : '-'}
       </span>
     </div>
+  )
+}
+
+function LeadStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; text: string; dot: string }> = {
+    'Interested':          { bg: 'bg-green-50 border-green-200',   text: 'text-green-700',  dot: 'bg-green-500'  },
+    'Not Interested':      { bg: 'bg-red-50 border-red-200',       text: 'text-red-700',    dot: 'bg-red-500'    },
+    'Follow-up Required':  { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+    'Callback Requested':  { bg: 'bg-blue-50 border-blue-200',     text: 'text-blue-700',   dot: 'bg-blue-500'   },
+  }
+  const style = map[status] ?? { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', dot: 'bg-gray-400' }
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${style.bg} ${style.text}`}>
+      <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+      {status}
+    </span>
   )
 }

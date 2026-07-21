@@ -33,6 +33,9 @@ interface EvaluationScores {
 interface EvaluationAnalysis {
   call_summary: string
   customer_intent: string
+  lead_status: 'Interested' | 'Not Interested' | 'Follow-up Required' | 'Callback Requested'
+  meeting_datetime: string | null
+  meeting_location: string | null
   main_discussion_points: string[]
   call_outcome: string
   agent_performance: Record<string, PerformanceDimension>
@@ -115,6 +118,11 @@ function normalizeAnalysis(raw: JsonObject): EvaluationAnalysis {
   return {
     call_summary: asString(raw.call_summary),
     customer_intent: asString(raw.customer_intent),
+    lead_status: (['Interested', 'Not Interested', 'Follow-up Required', 'Callback Requested'].includes(raw.lead_status as string)
+      ? raw.lead_status as EvaluationAnalysis['lead_status']
+      : 'Follow-up Required'),
+    meeting_datetime: typeof raw.meeting_datetime === 'string' && raw.meeting_datetime.trim() ? raw.meeting_datetime.trim() : null,
+    meeting_location: typeof raw.meeting_location === 'string' && raw.meeting_location.trim() ? raw.meeting_location.trim() : null,
     main_discussion_points: asStringArray(raw.main_discussion_points),
     call_outcome: asString(raw.call_outcome),
     agent_performance: {
@@ -285,7 +293,11 @@ async function analyzeTranscript(args: {
     '{',
     '  "call_summary": string,',
     '  "customer_intent": string,',
+    '  "lead_status": "Interested" | "Not Interested" | "Follow-up Required" | "Callback Requested",',
+    '  "meeting_datetime": string | null, // ISO or human-readable datetime if a meeting was mentioned in the conversation, otherwise null',
+    '  "meeting_location": string | null, // Address or location mentioned for the meeting, otherwise null',
     '  "main_discussion_points": string[],',
+
     '  "call_outcome": string,',
     '  "agent_performance": {',
     '    "greeting_quality": {"score": number, "feedback": string},',
@@ -499,6 +511,9 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
       analysis_json: analysis,
       call_summary: analysis.call_summary,
       customer_intent: analysis.customer_intent,
+      lead_status: analysis.lead_status,
+      meeting_datetime: analysis.meeting_datetime,
+      meeting_location: analysis.meeting_location,
       main_discussion_points: analysis.main_discussion_points,
       call_outcome: analysis.call_outcome,
       agent_performance: analysis.agent_performance,

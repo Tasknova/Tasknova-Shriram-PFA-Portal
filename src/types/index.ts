@@ -173,6 +173,9 @@ export interface AICallEvaluation {
   transcript_source?: string | null
   call_summary?: string | null
   customer_intent?: string | null
+  lead_status?: 'Interested' | 'Not Interested' | 'Follow-up Required' | 'Callback Requested' | null
+  meeting_datetime?: string | null
+  meeting_location?: string | null
   main_discussion_points?: string[]
   call_outcome?: string | null
   agent_performance?: Record<string, unknown>
