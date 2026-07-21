@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "hash-password": "node scripts/generate-password-hash.js"
+  }
+}
