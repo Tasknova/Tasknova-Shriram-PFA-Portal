@@ -13,7 +13,7 @@ const TABS = [
 ]
 
 export default function C2CCallingPage() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState('calls')
 
   return (
     <div className="space-y-6">

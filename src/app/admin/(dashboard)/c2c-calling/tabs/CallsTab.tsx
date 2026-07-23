@@ -373,6 +373,7 @@ export default function CallsTab({ isActive = true }: { isActive?: boolean }) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Duration</th>
 
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Score</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Recording</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Created</th>
                   <th />
                 </tr>
@@ -397,6 +398,11 @@ export default function CallsTab({ isActive = true }: { isActive?: boolean }) {
                           score={evaluation?.overall_score ?? evaluation?.score ?? null}
                           evalStatus={evaluation?.status}
                         />
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {call.recording_url && call.recording_url !== 'not_available' && call.recording_url.startsWith('http')
+                          ? <span className="text-green-600" title="Recording available">🎙️</span>
+                          : <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{new Date(call.created_at).toLocaleString()}</td>
                       <td className="px-6 py-4"><ChevronRight className="w-4 h-4 text-gray-400" /></td>
@@ -635,11 +641,12 @@ function CallDetail({ call: initialCall, onBack, onRetry }: { call: C2CCall; onB
           </div>
 
           {/* Recording */}
-          {call.recording_url && (
+          {call.recording_url && call.recording_url !== 'not_available' && call.recording_url.startsWith('http') && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Recording</h2>
               <audio controls className="w-full">
-                <source src={call.recording_url} />
+                <source src={call.recording_url} type="audio/wav" />
+                Your browser does not support audio playback.
               </audio>
             </div>
           )}
