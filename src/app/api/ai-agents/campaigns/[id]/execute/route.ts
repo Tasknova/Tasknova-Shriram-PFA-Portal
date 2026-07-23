@@ -150,13 +150,13 @@ export async function POST(
       let activeCalls = 2
       let checkAttempts = 0
       while (activeCalls >= 2 && checkAttempts < 120) { // wait up to 10 minutes (120 * 5s)
-        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+        const threeMinsAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString()
         const { count } = await client
           .from('ai_calls')
           .select('*', { count: 'exact', head: true })
           .eq('did', did)
           .eq('status', 'in_progress')
-          .gt('started_at', fifteenMinsAgo)
+          .gt('started_at', threeMinsAgo)
         
         activeCalls = count || 0
         if (activeCalls >= 2) {
