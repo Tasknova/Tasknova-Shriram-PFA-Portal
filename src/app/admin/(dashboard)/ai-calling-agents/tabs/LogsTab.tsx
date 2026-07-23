@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Search, CheckCircle, XCircle, Loader2, RefreshCw } from 'lucide-react'
+import { useAiCallingRealtime } from '@/hooks/useAiCallingRealtime'
 
 interface CallLog {
   call_id: string
@@ -49,13 +50,10 @@ export default function LogsTab() {
     void fetchLogs(filterCallId || undefined)
   }, [fetchLogs, filterCallId])
 
-  // Real-time polling every 10 seconds
-  useEffect(() => {
-    const id = setInterval(() => {
-      void fetchLogs(filterCallId || undefined, true)
-    }, 10000)
-    return () => clearInterval(id)
-  }, [fetchLogs, filterCallId])
+  // Real-time synchronization
+  useAiCallingRealtime(() => {
+    void fetchLogs(filterCallId || undefined, true)
+  }, true)
 
   const handleSearch = () => {
     setFilterCallId(inputValue.trim())
@@ -93,7 +91,7 @@ export default function LogsTab() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full font-medium">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Live · 10s
+            Live Sync
           </span>
           <button
             onClick={handleRefresh}
