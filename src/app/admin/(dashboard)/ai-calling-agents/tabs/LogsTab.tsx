@@ -21,7 +21,7 @@ function isValidRecordingUrl(url: unknown): boolean {
   )
 }
 
-export default function LogsTab() {
+export default function LogsTab({ isActive = false }: { isActive?: boolean }) {
   const [logs, setLogs] = useState<CallLog[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -53,7 +53,7 @@ export default function LogsTab() {
   // Real-time synchronization
   useAiCallingRealtime(() => {
     void fetchLogs(filterCallId || undefined, true)
-  }, true)
+  }, isActive)
 
   const handleSearch = () => {
     setFilterCallId(inputValue.trim())
