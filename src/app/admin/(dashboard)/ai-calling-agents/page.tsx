@@ -55,7 +55,7 @@ export default function AICallingAgentsPage() {
             const Component = tab.component
             const isTabActive = activeTab === tab.id
             const syncProps =
-              tab.id === 'calls' || tab.id === 'evaluations' || tab.id === 'logs'
+              tab.id === 'calls' || tab.id === 'evaluations'
                 ? { isActive: isTabActive }
                 : {}
 
