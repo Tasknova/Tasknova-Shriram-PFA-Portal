@@ -138,9 +138,13 @@ export async function POST(
         return NextResponse.json({ message: 'Campaign cancelled' })
       }
 
-      // Normalize phone number
-      let phone = row.customer_number.toString().trim().replace(/\s/g, '')
-      if (!phone.startsWith('91')) phone = '91' + phone
+      // Normalize phone number: extract digits only
+      let phone = row.customer_number.toString().replace(/\D/g, '')
+      if (phone.length === 10) {
+        phone = '91' + phone
+      } else if (phone.length > 10 && phone.startsWith('0')) {
+        phone = '91' + phone.slice(1)
+      }
 
       // Concurrency control: Wait until active channels for this DID are less than 2
       let activeCalls = 2
