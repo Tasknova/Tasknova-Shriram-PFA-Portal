@@ -563,7 +563,9 @@ function CampaignDetailView({ campaign, onBack }: { campaign: Campaign; onBack: 
               <tbody className="divide-y divide-gray-100">
                 {calls.map((row, idx) => {
                   const call = row.ai_calls
-                  const eval0 = call?.ai_evaluations?.[0]
+                  const eval0 = Array.isArray(call?.ai_evaluations) 
+                    ? call.ai_evaluations[0] 
+                    : call?.ai_evaluations
                   const score = eval0?.overall_score ?? eval0?.score
                   return (
                     <tr key={row.id} className="hover:bg-gray-50">
