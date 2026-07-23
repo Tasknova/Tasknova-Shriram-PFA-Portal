@@ -163,9 +163,11 @@ async function handleCallCompleted(
 
     // Trigger C2C evaluation if recording is available
     if (c2cRecordingUrl && c2cRecordingUrl !== 'pending' && c2cRecordingUrl !== 'failed') {
-      void triggerC2CEvaluationPipeline({ callId: call_id, recordingUrl: c2cRecordingUrl }).catch(
-        (err) => console.error('[C2C Webhook] Evaluation trigger failed:', err)
-      )
+      try {
+        await triggerC2CEvaluationPipeline({ callId: call_id, recordingUrl: c2cRecordingUrl })
+      } catch (err) {
+        console.error('[C2C Webhook] Evaluation trigger failed:', err)
+      }
     }
   }
 
