@@ -4,6 +4,7 @@ import { getIndusLabsAccessToken } from '@/lib/aiAgentsUtils'
 import { triggerEvaluationPipeline } from '@/lib/c2cEvaluation'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function POST(
   req: NextRequest,

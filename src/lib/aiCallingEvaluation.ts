@@ -422,9 +422,15 @@ export async function triggerEvaluationPipeline(context: EvaluationPipelineConte
     processed_at: null,
   })
 
-  void runEvaluationPipeline(context).catch((error) => {
+  try {
+    await runEvaluationPipeline(context)
+  } catch (error) {
     console.error('Evaluation pipeline failed:', error)
-  })
+    await upsertEvaluationRecord(context.callId, {
+      status: 'failed',
+      error_message: error instanceof Error ? error.message : String(error)
+    })
+  }
 }
 
 async function runEvaluationPipeline(context: EvaluationPipelineContext): Promise<void> {

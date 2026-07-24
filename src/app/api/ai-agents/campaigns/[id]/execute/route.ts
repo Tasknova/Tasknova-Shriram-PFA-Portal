@@ -146,20 +146,20 @@ export async function POST(
         phone = '91' + phone.slice(1)
       }
 
-      // Concurrency control: Wait until active channels for this DID are less than 2
-      let activeCalls = 2
+      // Concurrency control: Wait until active channels for this DID are less than 5
+      let activeCalls = 5
       let checkAttempts = 0
-      while (activeCalls >= 2 && checkAttempts < 120) { // wait up to 10 minutes (120 * 5s)
-        const threeMinsAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString()
+      while (activeCalls >= 5 && checkAttempts < 6) { // wait up to 30 seconds (6 * 5s)
+        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const { count } = await client
           .from('ai_calls')
           .select('*', { count: 'exact', head: true })
           .eq('did', did)
           .eq('status', 'in_progress')
-          .gt('started_at', threeMinsAgo)
+          .gt('started_at', fiveMinsAgo)
         
         activeCalls = count || 0
-        if (activeCalls >= 2) {
+        if (activeCalls >= 5) {
           console.log(`[Campaign ${campaignId}] ${activeCalls} active calls on DID ${did}. Waiting 5 seconds...`)
           await sleep(5000)
           checkAttempts++

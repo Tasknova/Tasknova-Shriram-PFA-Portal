@@ -105,13 +105,7 @@ export async function POST(req: NextRequest) {
       }))
       await client.from('ai_campaign_calls').insert(callRows)
 
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      fetch(`${baseUrl}/api/ai-agents/campaigns/${retryData.id}/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ did }),
-      }).catch((err) => console.error('Failed to trigger campaign execution:', err))
-
+      // Campaign created — client will trigger execute
       return NextResponse.json({ campaign: retrycampaign || retryData }, { status: 201 })
     }
 
@@ -133,14 +127,9 @@ export async function POST(req: NextRequest) {
       console.error('Failed to insert campaign call rows:', rowsError)
     }
 
-    // Trigger background execution (fire-and-forget via self-call)
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    fetch(`${baseUrl}/api/ai-agents/campaigns/${campaign.id}/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }).catch((err) => {
-      console.error('Failed to trigger campaign execution:', err)
-    })
+    // Campaign created successfully — execution will be triggered by the client
+    // so it can track progress via the execute endpoint directly.
+    // (Fire-and-forget from a serverless function is unreliable on Vercel)
 
     return NextResponse.json({ campaign }, { status: 201 })
   } catch (err) {

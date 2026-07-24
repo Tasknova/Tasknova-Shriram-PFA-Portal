@@ -263,9 +263,17 @@ function NewCampaignModal({
         throw new Error(err.error || 'Failed to start campaign')
       }
       const { campaign } = await res.json()
-      toast.success(`Campaign "${campaign.name}" started!`)
+      toast.success(`Campaign "${campaign.name}" created! Starting calls now...`)
       onCreated(campaign)
       onClose()
+
+      // Immediately trigger execution from the browser — this is reliable unlike
+      // fire-and-forget self-calls inside a Vercel serverless function.
+      fetch(`/api/ai-agents/campaigns/${campaign.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ did: selectedDid || undefined }),
+      }).catch((err) => console.error('Campaign execute trigger failed:', err))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to start campaign')
     } finally {
@@ -463,9 +471,9 @@ function CampaignDetailView({ campaign, onBack }: { campaign: Campaign; onBack: 
     void fetchDetails()
   }, [fetchDetails])
 
-  // Live polling while running
+  // Live polling while running or pending
   useEffect(() => {
-    if (liveData.status !== 'running') return
+    if (liveData.status !== 'running' && liveData.status !== 'pending') return
     const id = window.setInterval(() => void fetchDetails(), 5000)
     return () => window.clearInterval(id)
   }, [liveData.status, fetchDetails])
@@ -505,6 +513,25 @@ function CampaignDetailView({ campaign, onBack }: { campaign: Campaign; onBack: 
     }
   }
 
+  const handleRun = async () => {
+    try {
+      toast.loading('Starting campaign...', { id: 'run-campaign' })
+      const res = await fetch(`/api/ai-agents/campaigns/${campaign.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ did: liveData.contacts?.[0] ? undefined : undefined }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to start')
+      }
+      toast.success('Campaign started!', { id: 'run-campaign' })
+      void fetchDetails()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start campaign', { id: 'run-campaign' })
+    }
+  }
+
   const pct = liveData.total_calls > 0 ? Math.round((liveData.executed_calls / liveData.total_calls) * 100) : 0
 
   return (
@@ -513,6 +540,14 @@ function CampaignDetailView({ campaign, onBack }: { campaign: Campaign; onBack: 
         <button onClick={onBack} className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1 text-sm">← Back</button>
         <h2 className="text-xl font-bold text-gray-900">{liveData.name}</h2>
         <StatusBadge status={liveData.status} />
+        {liveData.status === 'pending' && (
+          <button
+            onClick={handleRun}
+            className="ml-2 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition flex items-center gap-1"
+          >
+            <Play className="w-3 h-3" /> Run Now
+          </button>
+        )}
         {(liveData.status === 'running' || liveData.status === 'pending') && (
           <button
             onClick={handleCancel}

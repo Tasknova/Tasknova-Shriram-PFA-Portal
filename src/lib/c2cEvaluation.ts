@@ -372,7 +372,9 @@ export async function triggerEvaluationPipeline(context: EvaluationPipelineConte
 
   await upsertEvaluationRecord(context.callId, { status: 'processing', error_message: null, processed_at: null })
 
-  void runEvaluationPipeline(context).catch(async (error) => {
+  try {
+    await runEvaluationPipeline(context)
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown pipeline error'
     console.error('[C2C] Evaluation pipeline failed for', context.callId, ':', errorMessage)
     await upsertEvaluationRecord(context.callId, {
@@ -380,7 +382,7 @@ export async function triggerEvaluationPipeline(context: EvaluationPipelineConte
       error_message: errorMessage,
       processed_at: new Date().toISOString(),
     }).catch(() => {})
-  })
+  }
 }
 
 async function runEvaluationPipeline(context: EvaluationPipelineContext): Promise<void> {
