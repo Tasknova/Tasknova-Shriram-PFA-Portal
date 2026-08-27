@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
 import { createServerClient } from '@/lib/supabase'
+import { isShriramPFAAgent } from '@/lib/aiAgentsUtils'
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,6 +17,26 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
 
+    // ── Shriram PFA filter ───────────────────────────────────────────────────
+    // Only show calls that belong to Shriram PFA or Shriram PFA_2 agents.
+    // Resolve the allowed agent IDs from the ai_agents table first.
+    const { data: allAgents } = await client
+      .from('ai_agents')
+      .select('agent_id, name')
+
+    const shriramAgentIds = (allAgents || [])
+      .filter((a: { agent_id: string; name: string }) => isShriramPFAAgent(a.name))
+      .map((a: { agent_id: string }) => a.agent_id)
+
+    // If no Shriram PFA agents exist yet, return an empty result set
+    if (shriramAgentIds.length === 0) {
+      return NextResponse.json(
+        { calls: [], total: 0, limit, offset },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     let query = client
       .from('ai_calls')
       .select(`
@@ -24,8 +45,9 @@ export async function GET(req: NextRequest) {
         ai_transcripts(*),
         ai_evaluations(*)
       `, { count: 'exact' })
+      .in('agent_id', shriramAgentIds) // ← only Shriram PFA calls
 
-    // Apply filters
+    // Apply additional filters
     if (agentId) {
       query = query.eq('agent_id', agentId)
     }

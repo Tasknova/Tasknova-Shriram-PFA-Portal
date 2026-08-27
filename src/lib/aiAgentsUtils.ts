@@ -424,9 +424,10 @@ export const SHRIRAM_PFA_DEFAULT_DID = SHRIRAM_PFA_DIDS[0].value
 
 /**
  * Detect Shriram/Sriram PFA agents regardless of spelling, spacing, or suffix (e.g. "Agent").
+ * Matches: "Shriram PFA", "Shriram PFA_2", "Sriram PFA", "Shriram PFA Agent", etc.
  */
 export function isShriramPFAAgent(agentName: string | null | undefined): boolean {
   if (!agentName) return false
   const normalized = agentName.toLowerCase().replace(/[\s_-]+/g, '')
-  return normalized.includes('equinox') && normalized.includes('labs')
+  return normalized.includes('shriram') || normalized.includes('sriram')
 }

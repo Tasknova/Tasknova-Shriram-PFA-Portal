@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { isShriramPFAAgent } from '@/lib/aiAgentsUtils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -45,6 +46,39 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
 
+    // ── Shriram PFA filter ───────────────────────────────────────────────────
+    // Only return evaluations for calls made by Shriram PFA or Shriram PFA_2.
+    const { data: allAgents } = await client
+      .from('ai_agents')
+      .select('agent_id, name')
+
+    const shriramAgentIds = (allAgents || [])
+      .filter((a: { agent_id: string; name: string }) => isShriramPFAAgent(a.name))
+      .map((a: { agent_id: string }) => a.agent_id)
+
+    if (shriramAgentIds.length === 0) {
+      return NextResponse.json(
+        { evaluations: [], total: 0, limit, offset },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+
+    // Fetch call_ids that belong to Shriram PFA agents
+    const { data: shriramCalls } = await client
+      .from('ai_calls')
+      .select('call_id')
+      .in('agent_id', shriramAgentIds)
+
+    const shriramCallIds = (shriramCalls || []).map((c: { call_id: string }) => c.call_id)
+
+    if (shriramCallIds.length === 0) {
+      return NextResponse.json(
+        { evaluations: [], total: 0, limit, offset },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     let query = client
       .from('ai_evaluations')
       .select(`
@@ -63,8 +97,9 @@ export async function GET(req: NextRequest) {
           ai_agents(name)
         )
       `, { count: 'exact' })
+      .in('call_id', shriramCallIds) // ← only Shriram PFA evaluations
 
-    // Apply filters
+    // Apply additional filters
     if (minScore) {
       query = query.gte('overall_score', parseFloat(minScore))
     }
@@ -75,8 +110,6 @@ export async function GET(req: NextRequest) {
       query = query.eq('status', status)
     }
 
-    // If agent_id filter is applied, we need to filter on the joined table
-    // For now, we'll fetch and filter client-side for simplicity
     const { data: allEvals, error, count } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -89,10 +122,10 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Client-side filter by agent if needed
+    // Client-side filter by specific agent_id if provided
     let evaluations: EvaluationRecord[] = (allEvals as EvaluationRecord[]) || []
     if (agentId) {
-      evaluations = evaluations.filter((e: { ai_calls?: { agent_id: string } }) => e.ai_calls?.agent_id === agentId)
+      evaluations = evaluations.filter((e) => e.ai_calls?.agent_id === agentId)
     }
 
     return NextResponse.json({

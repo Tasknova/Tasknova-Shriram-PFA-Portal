@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { isShriramPFAAgent } from '@/lib/aiAgentsUtils'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/ai-agents/campaigns — list all campaigns
+// GET /api/ai-agents/campaigns — list campaigns for Shriram PFA agents only
 export async function GET() {
   try {
     const client = createServerClient()
+
+    // ── Shriram PFA filter ─────────────────────────────────────────────────
+    const { data: allAgents } = await client
+      .from('ai_agents')
+      .select('agent_id, name')
+
+    const shriramAgentIds = (allAgents || [])
+      .filter((a: { agent_id: string; name: string }) => isShriramPFAAgent(a.name))
+      .map((a: { agent_id: string }) => a.agent_id)
+
+    if (shriramAgentIds.length === 0) {
+      return NextResponse.json({ campaigns: [] })
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     const { data, error } = await client
       .from('ai_campaigns')
       .select('*')
+      .in('agent_id', shriramAgentIds) // ← only Shriram PFA campaigns
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -45,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     const client = createServerClient()
 
-    // Verify agent exists
+    // Verify agent exists AND is a Shriram PFA agent
     const { data: agent, error: agentError } = await client
       .from('ai_agents')
       .select('agent_id, name')
@@ -54,6 +71,13 @@ export async function POST(req: NextRequest) {
 
     if (agentError || !agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    if (!isShriramPFAAgent(agent.name)) {
+      return NextResponse.json(
+        { error: 'Campaigns can only be created for Shriram PFA agents.' },
+        { status: 403 }
+      )
     }
 
     // Build insert payload — 'did' column may not exist yet if migration hasn't been run

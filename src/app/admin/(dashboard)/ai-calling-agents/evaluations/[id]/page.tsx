@@ -311,7 +311,7 @@ export default function EvaluationDetailPage() {
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-purple-200">
               <Sparkles className="h-3.5 w-3.5 text-purple-300" />
-              Equinox Labs • Lead Verification
+              Shriram PFA • Agent Evaluation
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight">
               Evaluation Details
@@ -468,7 +468,7 @@ function OverviewTab({ evaluation }: { evaluation: EvaluationDetail }) {
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-purple-900">Data Completeness</p>
-                <p className="text-xs text-purple-700">Equinox Labs Field Capture</p>
+                <p className="text-xs text-purple-700">Shriram PFA Field Capture</p>
               </div>
             </div>
           )}
@@ -837,7 +837,7 @@ function ScoresTab({
     {
       label: 'Data Completeness Score',
       score: evaluation.data_capture_completeness_score,
-      desc: '13-field Equinox verification capture',
+      desc: 'PFA data capture completeness',
       gradient: 'from-emerald-600 to-teal-600',
     },
     {
@@ -918,7 +918,7 @@ function CallInfoTab({ evaluation }: { evaluation: EvaluationDetail }) {
     { label: 'Call Identifier', value: evaluation.call_id },
     { label: 'Evaluation Status', value: evaluation.status },
     { label: 'Customer Phone', value: call?.customer_number || '-' },
-    { label: 'Agent Assigned', value: call?.ai_agents?.name || 'Priya (Equinox Labs)' },
+    { label: 'Agent Assigned', value: call?.ai_agents?.name || 'Shriram PFA Agent' },
     { label: 'Assigned DID', value: call?.did || '-' },
     { label: 'Call Direction', value: call?.call_type || 'Outbound' },
     { label: 'Duration', value: formatDuration(call?.duration) },
