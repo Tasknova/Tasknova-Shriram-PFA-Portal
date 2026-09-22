@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { AlertCircle, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, ChevronRight, Loader2, PhoneCall, RefreshCw } from 'lucide-react'
 import { useAiCallingRealtime } from '@/hooks/useAiCallingRealtime'
 
 interface Evaluation {
@@ -13,6 +13,8 @@ interface Evaluation {
   score: number | null
   overall_score: number | null
   overall_feedback?: string | null
+  lead_status?: string | null
+  meeting_datetime?: string | null
   issues: string[]
   suggestions: string[]
   error_message?: string | null
@@ -39,6 +41,7 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
     max_score: '',
     agent_id: '',
     status: '',
+    source: '',
   })
   const [agents, setAgents] = useState<Array<{ agent_id: string; name: string }>>([])
   const [reEvaluating, setReEvaluating] = useState(false)
@@ -65,6 +68,7 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
       if (filters.max_score) params.append('max_score', filters.max_score)
       if (filters.agent_id) params.append('agent_id', filters.agent_id)
       if (filters.status) params.append('status', filters.status)
+      if (filters.source) params.append('source', filters.source)
       params.append('_t', Date.now().toString())
 
       const response = await fetch(`/api/ai-agents/evaluations?${params}`, { cache: 'no-store' })
@@ -81,7 +85,7 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
         setLoading(false)
       }
     }
-  }, [filters.agent_id, filters.max_score, filters.min_score, filters.status])
+  }, [filters.agent_id, filters.max_score, filters.min_score, filters.status, filters.source])
 
   useAiCallingRealtime(() => {
     void fetchEvaluations()
@@ -174,6 +178,17 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </select>
+
+          <select
+            value={filters.source}
+            onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          >
+            <option value="">All Sources</option>
+            <option value="actual">Actual Call (Platform)</option>
+            <option value="transcript">Transcript Uploaded</option>
+            <option value="audio">Audio Uploaded</option>
+          </select>
         </div>
 
         <button
@@ -200,7 +215,8 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Call</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Eval Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Lead Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Agent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600">Overall Score</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600"></th>
@@ -221,6 +237,9 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
                   </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={evaluation.status} />
+                  </td>
+                  <td className="px-6 py-4">
+                    <LeadStatusBadge status={evaluation.lead_status} meetingDatetime={evaluation.meeting_datetime} evalStatus={evaluation.status} />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{evaluation.ai_calls?.ai_agents?.name || '-'}</td>
                   <td className="px-6 py-4">
@@ -244,6 +263,74 @@ export default function EvaluationsTab({ isActive = true }: { isActive?: boolean
         </div>
       )}
     </div>
+  )
+}
+
+function LeadStatusBadge({
+  status,
+  meetingDatetime,
+  evalStatus,
+}: {
+  status?: string | null
+  meetingDatetime?: string | null
+  evalStatus: Evaluation['status']
+}) {
+  if (evalStatus === 'processing') {
+    return <span className="text-xs text-blue-600 font-medium">Pending...</span>
+  }
+  if (evalStatus === 'failed' || !status) {
+    return <span className="text-xs text-gray-400">—</span>
+  }
+
+  const norm = status.toLowerCase()
+
+  if (norm.includes('callback') || norm.includes('follow')) {
+    return (
+      <span className="inline-flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 uppercase tracking-wide">
+          <PhoneCall className="w-3 h-3" />
+          Callback
+        </span>
+        {meetingDatetime && (
+          <span className="text-[10px] text-amber-700 font-semibold pl-1">{meetingDatetime}</span>
+        )}
+      </span>
+    )
+  }
+
+  if (norm.includes('not interested') || norm.includes('failed')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 border border-rose-300 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 uppercase tracking-wide">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+        Not Interested
+      </span>
+    )
+  }
+
+  if (norm.includes('no answer')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-300 px-2.5 py-0.5 text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+        No Answer
+      </span>
+    )
+  }
+
+  if (norm.includes('wrong number')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 border border-zinc-300 px-2.5 py-0.5 text-[11px] font-bold text-zinc-700 uppercase tracking-wide">
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+        Wrong Number
+      </span>
+    )
+  }
+
+  // Default: Information Collected / Interested
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 uppercase tracking-wide">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      Interested
+    </span>
   )
 }
 

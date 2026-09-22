@@ -194,7 +194,20 @@ export function formatTranscriptIntoTurns(
 ): FormattedTurn[] {
   if (!transcriptText || !transcriptText.trim()) return []
 
-  const lines = normalizeAndSplitSpeakerLines(transcriptText)
+  // Clean any raw subtitle/HTML artifacts, timestamp markers like [0.0s], and metadata markers
+  const cleanedText = transcriptText
+    .replace(/<[^>]*>?/g, ' ')
+    .replace(/\{[^}]*\}/g, ' ')
+    .replace(/<\|[^|]*\|>/g, ' ')
+    .replace(/\[\d+\.?\d*s\]/g, '')
+    .replace(/\b(?:mf\d+(?:\.\d+)?|mbf)\b/gi, ' ')
+    .replace(/(\b[^\s\n]+(?:\s+[^\s\n]+)?\b)(?:\s+\1){2,}/gi, '$1')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+
+  if (!cleanedText) return []
+
+  const lines = normalizeAndSplitSpeakerLines(cleanedText)
   if (lines.length === 0) return []
 
   const prefixRegex = /^([A-Za-z0-9 _]{1,30}):\s+(.*)$/i
@@ -242,7 +255,7 @@ export function formatTranscriptIntoTurns(
   }
 
   // Fallback: heuristic segmentation for unlabeled text
-  const sentenceLines = lines.length >= 2 ? lines : splitIntoSentences(transcriptText)
+  const sentenceLines = lines.length >= 2 ? lines : splitIntoSentences(cleanedText)
   return assignSpeakers(sentenceLines)
 }
 

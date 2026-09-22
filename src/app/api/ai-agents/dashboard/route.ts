@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import { createServerClient } from '@/lib/supabase'
 import { isShriramPFAAgent } from '@/lib/aiAgentsUtils'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const client = createServerClient()
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const searchParams = req.nextUrl.searchParams
+    const daysParam = searchParams.get('days') || '30'
+
+    let startDate: string | null = null
+    if (daysParam !== 'all') {
+      const days = parseInt(daysParam, 10)
+      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+    }
 
     // ── Shriram PFA filter ─────────────────────────────────────────────────
     const { data: agentsRaw } = await client
@@ -19,12 +26,15 @@ export async function GET() {
     const shriramAgentIds = agentsList.map((a: { agent_id: string }) => a.agent_id)
     // ──────────────────────────────────────────────────────────────────────
 
-    // Fetch only recent calls for Shriram PFA agents (last 30 days)
+    // Fetch calls for Shriram PFA agents
     let recentCallsQuery = client
       .from('ai_calls')
       .select('call_id, agent_id, call_type, created_at, status')
-      .gte('created_at', thirtyDaysAgo)
       .order('created_at', { ascending: false })
+
+    if (startDate) {
+      recentCallsQuery = recentCallsQuery.gte('created_at', startDate)
+    }
 
     if (shriramAgentIds.length > 0) {
       recentCallsQuery = recentCallsQuery.in('agent_id', shriramAgentIds)

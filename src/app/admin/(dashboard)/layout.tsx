@@ -9,6 +9,8 @@ import {
   Menu,
   X,
   Wand2,
+  UploadCloud,
+  PhoneForwarded,
 } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
@@ -16,6 +18,8 @@ import toast from 'react-hot-toast'
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { name: 'AI Calling Agents', href: '/admin/ai-calling-agents', icon: Wand2 },
+  { name: 'Upload Recording', href: '/admin/upload-recording', icon: UploadCloud },
+  { name: 'C2C Calling', href: '/admin/c2c-calling', icon: PhoneForwarded },
   { name: 'Admins', href: '/admin/admins', icon: Shield },
 ]
 

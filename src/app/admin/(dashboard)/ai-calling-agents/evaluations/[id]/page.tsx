@@ -9,10 +9,13 @@ import {
   ArrowLeft,
   Award,
   BarChart2,
+  Briefcase,
+  Calendar,
   Check,
   CheckCircle2,
   CheckSquare,
   Clock,
+  DollarSign,
   FileText,
   Info,
   Layers,
@@ -30,6 +33,7 @@ import {
   Target,
   TrendingUp,
   User,
+  Users,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { AICallEvaluation } from '@/types'
@@ -290,6 +294,11 @@ export default function EvaluationDetailPage() {
     { id: 'info', label: 'Call Information', icon: FileText },
   ] as const
 
+  const isCallback =
+    (evaluation.lead_status?.toLowerCase().includes('callback') ||
+      evaluation.lead_status?.toLowerCase().includes('follow')) ??
+    false
+
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Top Back Navigation */}
@@ -301,6 +310,26 @@ export default function EvaluationDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Back to AI Calling Agents
         </Link>
       </div>
+
+      {/* Callback Banner */}
+      {isCallback && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 flex items-start gap-4 shadow-sm animate-fade-in">
+          <div className="flex-shrink-0 mt-0.5 w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center">
+            <PhoneCall className="w-5 h-5 text-amber-600 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-extrabold text-amber-900 uppercase tracking-wider">📞 Callback Required</p>
+            <p className="text-sm text-amber-800 mt-0.5">
+              {evaluation.meeting_datetime
+                ? <>Scheduled for <strong>{evaluation.meeting_datetime}</strong>{evaluation.meeting_location ? <> at <strong>{evaluation.meeting_location}</strong></> : ''}</>  
+                : 'Customer requested a callback — time not yet confirmed.'}
+            </p>
+          </div>
+          <span className="ml-auto shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-amber-200 text-amber-900 text-xs font-bold border border-amber-300 uppercase tracking-wide">
+            Action Needed
+          </span>
+        </div>
+      )}
 
       {/* Header Banner Card */}
       <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 p-8 text-white shadow-xl relative overflow-hidden border border-purple-900/40">
@@ -429,20 +458,21 @@ export default function EvaluationDetailPage() {
 
 function OverviewTab({ evaluation }: { evaluation: EvaluationDetail }) {
   const infoCaptured = evaluation.information_captured || {}
+  // Exactly the 13 fields the Shriram PFA evaluation prompt extracts
   const fields = [
-    { key: "Customer's full name", alt: 'Customer full name', icon: User },
-    { key: 'Lead source or campaign name', alt: 'Lead source', icon: Tag },
-    { key: 'Testing requirement', alt: 'Testing requirement', icon: Sparkles },
-    { key: 'Product or sample name', alt: 'Product or sample name', icon: Layers },
-    { key: 'Business or personal requirement', alt: 'Business or personal requirement', icon: Shield },
-    { key: 'Company or brand name', alt: 'Company or brand name', icon: FileText },
-    { key: 'Nature of business', alt: 'Nature of business', icon: Target },
-    { key: 'City', alt: 'City', icon: MapPin },
-    { key: 'PIN code', alt: 'PIN code', icon: MapPin },
-    { key: 'Mobile number', alt: 'Mobile number', icon: Phone },
-    { key: 'Email address', alt: 'Email address', icon: Mail },
-    { key: 'Preferred language', alt: 'Preferred language', icon: MessageSquare },
-    { key: 'Call status', alt: 'Call status', icon: PhoneCall },
+    { key: 'Customer full name',                   alt: "Customer's full name",           icon: User },
+    { key: 'Mobile number',                        alt: 'Mobile',                         icon: Phone },
+    { key: 'City',                                 alt: 'City / Location',                icon: MapPin },
+    { key: 'Age',                                  alt: 'Age',                            icon: Users },
+    { key: 'Occupation',                           alt: 'Occupation / Job',               icon: Briefcase },
+    { key: 'Policy or product of interest',        alt: 'Policy of interest',             icon: ShieldCheck },
+    { key: 'Existing policy holder',               alt: 'Existing policy',                icon: Shield },
+    { key: 'Annual income or investment capacity', alt: 'Annual income',                  icon: DollarSign },
+    { key: 'Preferred language',                   alt: 'Language preference',            icon: MessageSquare },
+    { key: 'Callback date and time',               alt: 'Callback date',                  icon: Calendar },
+    { key: 'Email address',                        alt: 'Email',                          icon: Mail },
+    { key: 'Number of dependents',                 alt: 'Dependents',                     icon: Users },
+    { key: 'Lead source or campaign name',         alt: 'Lead source',                    icon: Tag },
   ]
 
   return (
@@ -481,7 +511,7 @@ function OverviewTab({ evaluation }: { evaluation: EvaluationDetail }) {
               <ShieldCheck className="w-5 h-5 text-emerald-600" />
               Information Captured from Transcript
             </h3>
-            <span className="text-xs text-gray-500 font-medium">13 Target Verification Fields</span>
+            <span className="text-xs text-gray-500 font-medium">13 Shriram PFA Verification Fields</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -860,28 +890,78 @@ function ScoresTab({
     },
   ]
 
+  const GRADE_SCALE = [
+    { grade: 'A+', range: '90–100', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+    { grade: 'A',  range: '80–89',  color: 'bg-green-500',   text: 'text-green-700',   bg: 'bg-green-50 border-green-200'   },
+    { grade: 'B',  range: '70–79',  color: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200'     },
+    { grade: 'C',  range: '60–69',  color: 'bg-cyan-500',    text: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200'     },
+    { grade: 'D',  range: '40–59',  color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200'   },
+    { grade: 'F',  range: '0–39',   color: 'bg-rose-500',    text: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200'     },
+  ]
+
+  const getGrade = (score: number | null | undefined) => {
+    if (score == null) return null
+    if (score >= 90) return 'A+'
+    if (score >= 80) return 'A'
+    if (score >= 70) return 'B'
+    if (score >= 60) return 'C'
+    if (score >= 40) return 'D'
+    return 'F'
+  }
+
   return (
     <div className="space-y-6">
+      {/* Grading Legend */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+          <Award className="w-5 h-5 text-purple-600" />
+          <h2 className="text-base font-bold text-gray-900">Shriram PFA Score Grading Legend</h2>
+          <span className="ml-auto text-xs text-gray-400 font-medium">Based on Priya agent call flow adherence</span>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {GRADE_SCALE.map((g) => (
+            <div key={g.grade} className={`rounded-xl border p-3 flex flex-col items-center gap-1 ${g.bg}`}>
+              <span className={`text-2xl font-extrabold ${g.text}`}>{g.grade}</span>
+              <span className="text-xs font-semibold text-gray-600">{g.range}</span>
+              <div className={`w-full h-1.5 rounded-full ${g.color} mt-1 opacity-70`} />
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-gray-500">
+          <strong>Critical failure cap:</strong> Any call where the agent repeated the greeting, quoted exact figures, or skipped the callback confirmation is automatically capped at <strong className="text-rose-600">40 (Grade D)</strong> regardless of other scores.
+        </p>
+      </div>
       {/* Top 5 KPI Score Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {scores.map((s, idx) => (
-          <div
-            key={idx}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm relative overflow-hidden flex flex-col justify-between"
-          >
-            <div className={`h-1.5 w-full absolute top-0 left-0 bg-gradient-to-r ${s.gradient}`} />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-500">{s.label}</p>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-gray-900">
-                  {typeof s.score === 'number' ? s.score.toFixed(0) : '-'}
-                </span>
-                <span className="text-xs text-gray-400 font-semibold">/100</span>
+        {scores.map((s, idx) => {
+          const grade = getGrade(typeof s.score === 'number' ? s.score : null)
+          return (
+            <div
+              key={idx}
+              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm relative overflow-hidden flex flex-col justify-between"
+            >
+              <div className={`h-1.5 w-full absolute top-0 left-0 bg-gradient-to-r ${s.gradient}`} />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">{s.label}</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-extrabold text-gray-900">
+                    {typeof s.score === 'number' ? s.score.toFixed(0) : '-'}
+                  </span>
+                  <span className="text-xs text-gray-400 font-semibold">/100</span>
+                  {grade && (
+                    <span className={`text-sm font-extrabold ml-auto ${
+                      grade === 'A+' || grade === 'A' ? 'text-emerald-600' :
+                      grade === 'B' ? 'text-blue-600' :
+                      grade === 'C' ? 'text-cyan-600' :
+                      grade === 'D' ? 'text-amber-600' : 'text-rose-600'
+                    }`}>{grade}</span>
+                  )}
+                </div>
               </div>
+              <p className="mt-3 text-[11px] text-gray-500 leading-tight">{s.desc}</p>
             </div>
-            <p className="mt-3 text-[11px] text-gray-500 leading-tight">{s.desc}</p>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Performance Score Meters */}

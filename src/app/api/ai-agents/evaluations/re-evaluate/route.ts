@@ -35,10 +35,13 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      await triggerEvaluationPipeline({
-        callId: call.call_id,
-        recordingUrl: hasRecording ? call.recording_url : null,
-      })
+      await triggerEvaluationPipeline(
+        {
+          callId: call.call_id,
+          recordingUrl: hasRecording ? call.recording_url : null,
+        },
+        true
+      )
 
       await logAuditEvent('evaluation.retriggered', { call_id: callId })
 

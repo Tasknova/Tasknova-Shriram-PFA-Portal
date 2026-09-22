@@ -65,6 +65,71 @@ function isRecord(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Cleans raw Whisper transcript text by removing embedded subtitle/caption artifacts.
+ *
+ * Many phone call WAV recordings have embedded SRT/ASS/WebVTT subtitle tracks.
+ * Whisper picks these up verbatim, producing garbage like:
+ *   </i><font color=#00FFFFFF></font><mf0.00000000></u></v>
+ *
+ * This function strips:
+ *   - HTML/XML tags: <tag>, </tag>, <tag/>
+ *   - ASS/SSA subtitle tags: {\an8}, {\pos(...)}, etc.
+ *   - Whisper hallucination markers: <mf...>, <|...>
+ *   - SRT/VTT timestamp lines: 00:00:00,000 --> 00:00:01,000
+ *   - Segment timestamp prefixes we add: [0.0s]
+ *   - Sequence numbers on their own lines (SRT artifacts)
+ *   - Excess whitespace / blank lines
+ */
+function cleanWhisperText(raw: string): string {
+  if (!raw || !raw.trim()) return ''
+
+  let text = raw
+
+  // Remove HTML / XML tags and malformed unclosed tags (e.g. </i>, <font ...>, <mbf, <mf...>)
+  text = text.replace(/<[^>]*>?/g, ' ')
+
+  // Remove ASS/SSA override tags: {\an8}, {\pos(320,50)}, {\c&H...}, etc.
+  text = text.replace(/\{[^}]*\}/g, ' ')
+
+  // Remove Whisper special tokens: <|0.00|>, <|en|>, <|transcribe|>, <|startoftranscript|>
+  text = text.replace(/<\|[^|]*\|>/g, ' ')
+
+  // Remove <mf...> style subtitle metadata markers or stray tokens
+  text = text.replace(/\b(?:mf\d+(?:\.\d+)?|mbf)\b/gi, ' ')
+
+  // Remove SRT/VTT timestamp lines: 00:00:00,000 --> 00:00:01,000 or 00:00:00.000 --> 00:00:01.000
+  text = text.replace(/\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.]\d{3}/g, '')
+
+  // Remove our own segment timestamp prefixes: [0.0s], [123.4s]
+  text = text.replace(/\[\d+\.?\d*s\]/g, '')
+
+  // Remove WEBVTT header and NOTE blocks
+  text = text.replace(/^WEBVTT.*$/gm, '')
+  text = text.replace(/^NOTE.*$/gm, '')
+
+  // Remove standalone SRT sequence numbers (lines that are just a number)
+  text = text.replace(/^\s*\d+\s*$/gm, '')
+
+  // Remove Whisper repetition hallucination loops (exact phrase or word repeated 3+ times in a row)
+  text = text.replace(/(\b[^\s\n]+(?:\s+[^\s\n]+)?\b)(?:\s+\1){2,}/gi, '$1')
+
+  // Collapse multiple spaces / tabs
+  text = text.replace(/[ \t]+/g, ' ')
+
+  // Collapse 3+ newlines into 2
+  text = text.replace(/\n{3,}/g, '\n\n')
+
+  // Trim each line
+  text = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 1) // drop single-char garbage lines
+    .join('\n')
+
+  return text.trim()
+}
+
 function clampScore(value: unknown, fallback = 0): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) {
@@ -164,8 +229,15 @@ function normalizeAnalysis(raw: JsonObject): EvaluationAnalysis {
       data_capture_completeness_score: clampScore(scores.data_capture_completeness_score),
     },
     overall_feedback: asString(raw.overall_feedback),
-    diarized_transcript: asString(raw.diarized_transcript),
+    diarized_transcript: normalizeDiarizedTranscript(raw.diarized_transcript),
   }
+}
+
+function normalizeDiarizedTranscript(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).join('\n')
+  }
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function getRecordingFileName(recordingUrl: string, contentType: string | null): string {
@@ -238,19 +310,34 @@ async function transcribeRecording(recordingUrl: string): Promise<WhisperTranscr
     throw new Error('OPENAI_API_KEY is not configured')
   }
 
-  const recordingResponse = await fetch(recordingUrl)
-  if (!recordingResponse.ok) {
-    throw new Error(`Failed to download recording: ${recordingResponse.status}`)
+  let audioBuffer: ArrayBuffer
+  let contentType: string | null = null
+
+  if (recordingUrl.startsWith('/')) {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const localPath = path.join(process.cwd(), 'public', recordingUrl.replace(/^\//, ''))
+    const fileBuf = await fs.readFile(localPath)
+    audioBuffer = fileBuf.buffer.slice(fileBuf.byteOffset, fileBuf.byteOffset + fileBuf.byteLength)
+    const ext = recordingUrl.split('.').pop()?.toLowerCase()
+    contentType = ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'application/octet-stream'
+  } else {
+    const recordingResponse = await fetch(recordingUrl)
+    if (!recordingResponse.ok) {
+      throw new Error(`Failed to download recording: ${recordingResponse.status}`)
+    }
+    audioBuffer = await recordingResponse.arrayBuffer()
+    contentType = recordingResponse.headers.get('content-type')
   }
 
-  const audioBuffer = await recordingResponse.arrayBuffer()
-  const contentType = recordingResponse.headers.get('content-type')
   const formData = new FormData()
   formData.append('model', 'whisper-1')
   formData.append('response_format', 'verbose_json')
+  formData.append('timestamp_granularities[]', 'segment')
+  // Removed prompt to prevent hallucination
   formData.append(
     'file',
-    new Blob([audioBuffer], { type: contentType || 'application/octet-stream' }),
+    new Blob([audioBuffer], { type: contentType || 'audio/wav' }),
     getRecordingFileName(recordingUrl, contentType)
   )
 
@@ -278,8 +365,13 @@ async function transcribeRecording(recordingUrl: string): Promise<WhisperTranscr
     throw new Error('Whisper did not return transcript text')
   }
 
+  const cleanedText = cleanWhisperText(text)
+  if (!cleanedText) {
+    throw new Error('Whisper transcript was empty after cleaning subtitle artifacts')
+  }
+
   return {
-    text,
+    text: cleanedText,
     language: payload.language || null,
     duration: typeof payload.duration === 'number' ? payload.duration : null,
   }
@@ -299,34 +391,25 @@ async function analyzeTranscript(args: {
   }
 
   const prompt = [
-    'You are evaluating a lead-qualification AI agent call for Shriram PFA (Personal Finance Advisor) — an insurance and personal finance advisory service.',
+    'You are an expert evaluator for financial and insurance calling transcripts (Shriram Life / Personal Finance Advisor, persistency calling, premium renewal, policy service, and customer advisory calls).',
+    'The conversation may be in Hindi (Devanagari or Romanized/Hinglish), English, or mixed languages. Evaluate accurately regardless of language.',
     'Return ONLY valid JSON.',
     'Score everything on a 0-100 scale.',
     'Be concise, evidence-based, and grounded in the transcript.',
-    '',
-    'CRITICAL FAILURE CAP RULE:',
-    'If any of the following occurred anywhere in the transcript, cap the overall_call_score at 40 regardless of other weighted scores, and explicitly list the failure in "areas_for_improvement":',
-    '- Agent repeated its name, "Shriram PFA," the greeting, or the reason for calling more than once.',
-    '- Agent went silent / produced no reply to a caller turn.',
-    '- Agent discussed specific premium amounts, guaranteed returns, or exact policy figures instead of using the referral line ("Our financial advisor will guide you on this in detail during the next call.").',
-    '- Agent ended the call without calling the correct tool and without a spoken goodbye.',
-    '- The Call Status logged does not match what actually happened in the transcript.',
-    '- Agent failed to confirm the customer\'s availability for a follow-up call.',
     '',
     'Required JSON shape:',
     '{',
     '  "call_summary": string,',
     '  "customer_intent": string,',
-    '  "lead_status": "Information Collected" | "Callback Required" | "Not Interested" | "No Answer" | "Wrong Number", // Must match what actually happened or the tool called at the end.',
+    '  "lead_status": "Information Collected" | "Callback Required" | "Payment Follow-up" | "Not Interested" | "No Answer" | "Wrong Number" | "Completed",',
     '  "information_captured": {',
-    '    // Extract the following exactly as said in transcript. Use "N/A" or "Not Captured" if not present.',
     '    "Customer full name": string,',
     '    "Mobile number": string,',
     '    "City": string,',
     '    "Age": string,',
     '    "Occupation": string,',
-    '    "Policy or product of interest": string,    // E.g. life insurance, ULIP, pension plan, mutual fund',
-    '    "Existing policy holder": string,           // Yes / No / Not Captured',
+    '    "Policy or product of interest": string,',
+    '    "Existing policy holder": string,',
     '    "Annual income or investment capacity": string,',
     '    "Preferred language": string,',
     '    "Callback date and time": string,',
@@ -334,10 +417,9 @@ async function analyzeTranscript(args: {
     '    "Number of dependents": string,',
     '    "Lead source or campaign name": string',
     '  },',
-    '  "meeting_datetime": string | null, // If the user specifies a relative date like "today" or "tomorrow", output EXACTLY the relative phrase (e.g., "Tomorrow 12:00 PM"). Do NOT output arbitrary absolute dates or ISO strings if they are not explicitly mentioned.',
-    '  "meeting_location": string | null, // Address or location mentioned for the meeting, otherwise null',
+    '  "meeting_datetime": string | null,',
+    '  "meeting_location": string | null,',
     '  "main_discussion_points": string[],',
-    '',
     '  "call_outcome": string,',
     '  "agent_performance": {',
     '    "greeting_quality": {"score": number, "feedback": string},',
@@ -346,12 +428,12 @@ async function analyzeTranscript(args: {
     '    "clarity": {"score": number, "feedback": string},',
     '    "listening_ability": {"score": number, "feedback": string},',
     '    "question_quality": {"score": number, "feedback": string},',
-    '    "deflection_handling": {"score": number, "feedback": string}, // Score whether agent correctly deflected premium/returns queries to the human advisor',
+    '    "deflection_handling": {"score": number, "feedback": string},',
     '    "accuracy": {"score": number, "feedback": string},',
     '    "conversation_flow": {"score": number, "feedback": string},',
     '    "confidence": {"score": number, "feedback": string},',
-    '    "closing_quality": {"score": number, "feedback": string}, // Score if agent confirmed callback time, called correct tool, said goodbye',
-    '    "script_and_flow_adherence": {"score": number, "feedback": string} // Score if call followed expected order, 1 question per turn, no skipped/duped steps',
+    '    "closing_quality": {"score": number, "feedback": string},',
+    '    "script_and_flow_adherence": {"score": number, "feedback": string}',
     '  },',
     '  "what_went_well": string[],',
     '  "areas_for_improvement": string[],',
@@ -361,10 +443,23 @@ async function analyzeTranscript(args: {
     '    "agent_performance_score": number,',
     '    "customer_engagement_score": number,',
     '    "communication_score": number,',
-    '    "data_capture_completeness_score": number // Score how many of the 13 fields above were correctly captured vs applicable',
+    '    "data_capture_completeness_score": number',
     '  },',
     '  "overall_feedback": string,',
-    '  "diarized_transcript": string // IMPORTANT: Output a formatted string separating speakers with newlines. E.g. "Assistant: Hello\\nUser: Hi"',
+    '  "diarized_transcript": string // CRITICAL DIARIZATION RULES:\n' +
+    '// 1. You MUST separate the conversation into clearly labeled dialogue turns.\n' +
+    '// 2. The calling agent/representative is "Assistant:" and the customer is "User:".\n' +
+    '// 3. Every single turn MUST start with "Assistant: " or "User: " on its own line.\n' +
+    '// 4. PRESERVE THE SPOKEN WORDS IN THEIR ORIGINAL LANGUAGE (Hindi, English, Hinglish, etc.)! Do not translate or summarize the dialogue turns away.\n' +
+    '// 5. Fix obvious phonetic transcription typos if clear from context (e.g. Hindi insurance terms like प्रीमियम, पॉलिसी, चेक, कैश, कंप्यूटर).\n' +
+    '// 6. Alternate turns: Assistant speaks, User responds, Assistant replies.\n' +
+    '// 7. Format example:\n' +
+    '//    Assistant: Hello, am I speaking with Rahul?\n' +
+    '//    User: Haan, bol raha hoon.\n' +
+    '//    Assistant: Namaste sir, main Shriram se bol raha hoon aapki policy ke sambandh mein...\n' +
+    '//    User: Haan bataiye.\n' +
+    '// 8. NEVER output HTML tags, timestamps, or subtitle tokens.\n' +
+    '// 9. You MUST NOT return an empty string or say speech is unintelligible if there are spoken words in the transcript. Diarize all spoken words into turns.',
     '}',
     '',
     `Agent name: ${args.agentName || 'Unknown'}`,
@@ -387,7 +482,7 @@ async function analyzeTranscript(args: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
@@ -443,7 +538,10 @@ async function upsertEvaluationRecord(
   }
 }
 
-export async function triggerEvaluationPipeline(context: EvaluationPipelineContext): Promise<void> {
+export async function triggerEvaluationPipeline(
+  context: EvaluationPipelineContext,
+  force = false
+): Promise<void> {
   const client = createServerClient()
 
   const { data: existing } = await client
@@ -452,7 +550,7 @@ export async function triggerEvaluationPipeline(context: EvaluationPipelineConte
     .eq('call_id', context.callId)
     .maybeSingle()
 
-  if (existing?.status === 'completed') {
+  if (!force && existing?.status === 'completed') {
     return
   }
 
@@ -530,7 +628,14 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
       recordingUrl !== 'failed' &&
       recordingUrl !== ''
 
-    if (hasValidRecordingUrl) {
+    // Use existing stored raw text if available (from upload-recording route) to avoid redundant Whisper API calls
+    const rawFromDb = asString(transcriptRecord?.raw_text, '')
+    const isDummyRaw =
+      rawFromDb.toLowerCase().includes('no intelligible speech') ||
+      rawFromDb.toLowerCase().includes('no discernible')
+    const storedRawText = isDummyRaw ? '' : cleanWhisperText(rawFromDb)
+
+    if (hasValidRecordingUrl && !storedRawText) {
       try {
         const whisper = await transcribeRecording(recordingUrl!)
         whisperText = whisper.text
@@ -544,9 +649,7 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
       }
     }
 
-    // Use the best available transcript text
-    const storedRawText = asString(transcriptRecord?.raw_text, '')
-    const rawTranscriptText = formattedHistoryTranscript || whisperText || storedRawText
+    const rawTranscriptText = formattedHistoryTranscript || storedRawText || whisperText
 
     if (!rawTranscriptText) {
       throw new Error(`No transcript text available for evaluation of call ${context.callId}. Recording URL: ${recordingUrl || 'none'}, history turns: ${history.length}`)
@@ -561,13 +664,29 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
       agentName: asString(agentRecord?.name, '') || null,
     })
 
+    const cleanedRaw = cleanWhisperText(rawTranscriptText)
+    const diarizedClean = cleanWhisperText(analysis.diarized_transcript ?? '')
+    const isCannedRejection =
+      diarizedClean.toLowerCase().includes('no intelligible speech') ||
+      diarizedClean.toLowerCase().includes('no discernible')
+
+    let finalTranscriptText = ''
+    if (diarizedClean && diarizedClean.length > 0 && !isCannedRejection) {
+      finalTranscriptText = diarizedClean
+    } else if (cleanedRaw && cleanedRaw.length > 20) {
+      // Raw Whisper text has real conversation — NEVER throw it away!
+      finalTranscriptText = cleanedRaw
+    } else {
+      finalTranscriptText = diarizedClean || cleanedRaw || 'No intelligible speech detected in recording.'
+    }
+
     await client.from('ai_transcripts').upsert(
       {
         call_id: context.callId,
         summary: analysis.call_summary,
         call_outcome: analysis.call_outcome,
         history,
-        raw_text: whisperText || storedRawText,
+        raw_text: finalTranscriptText,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'call_id' }
@@ -580,8 +699,6 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
         updated_at: new Date().toISOString(),
       })
       .eq('call_id', context.callId)
-
-    const finalTranscriptText = analysis.diarized_transcript || rawTranscriptText
 
     await upsertEvaluationRecord(context.callId, {
       status: 'completed',
@@ -634,3 +751,9 @@ async function runEvaluationPipeline(context: EvaluationPipelineContext): Promis
     throw error
   }
 }
+
+/**
+ * Public export: clean raw Whisper/subtitle text for use outside this module.
+ * Strips HTML, ASS/SRT tags, <mf...> markers, timestamp lines, etc.
+ */
+export { cleanWhisperText as cleanTranscriptText }

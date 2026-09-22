@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     const maxScore = searchParams.get('max_score')
     const agentId = searchParams.get('agent_id')
     const status = searchParams.get('status')
+    const source = searchParams.get('source') // 'actual' | 'transcript' | 'audio' | ''
     const limit = parseInt(searchParams.get('limit') || '50', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
 
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
       .select('call_id')
       .in('agent_id', shriramAgentIds)
 
-    const shriramCallIds = (shriramCalls || []).map((c: { call_id: string }) => c.call_id)
+    let shriramCallIds = (shriramCalls || []).map((c: { call_id: string }) => c.call_id)
 
     if (shriramCallIds.length === 0) {
       return NextResponse.json(
@@ -77,7 +78,42 @@ export async function GET(req: NextRequest) {
         { headers: { 'Cache-Control': 'no-store, max-age=0' } }
       )
     }
-    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Source filter ────────────────────────────────────────────────────────
+    if (source && source !== '') {
+      // Fetch agent_config for all shriram calls to filter by source
+      const { data: configCalls } = await client
+        .from('ai_calls')
+        .select('call_id, agent_config')
+        .in('call_id', shriramCallIds)
+
+      const configRows = (configCalls || []) as Array<{ call_id: string; agent_config: Record<string, string> | null }>
+
+      if (source === 'transcript') {
+        // transcript_upload source
+        shriramCallIds = configRows
+          .filter((c) => c.agent_config?.source === 'transcript_upload')
+          .map((c) => c.call_id)
+      } else if (source === 'audio') {
+        // uploaded audio files (source === 'upload')
+        shriramCallIds = configRows
+          .filter((c) => c.agent_config?.source === 'upload')
+          .map((c) => c.call_id)
+      } else if (source === 'actual') {
+        // actual platform calls (no source or source = 'api')
+        shriramCallIds = configRows
+          .filter((c) => !c.agent_config?.source || c.agent_config.source === 'api')
+          .map((c) => c.call_id)
+      }
+
+      if (shriramCallIds.length === 0) {
+        return NextResponse.json(
+          { evaluations: [], total: 0, limit, offset },
+          { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+        )
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     let query = client
       .from('ai_evaluations')

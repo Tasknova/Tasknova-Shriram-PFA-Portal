@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -42,15 +42,12 @@ export default function DashboardTab() {
   const [data, setData] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [dateFilter, setDateFilter] = useState('30')
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/ai-agents/dashboard', {
+      const response = await fetch(`/api/ai-agents/dashboard?days=${dateFilter}`, {
         cache: 'no-store',
       })
       if (!response.ok) throw new Error('Failed to fetch dashboard data')
@@ -64,7 +61,11 @@ export default function DashboardTab() {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [dateFilter])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [dateFilter, fetchDashboardData])
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -132,8 +133,18 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-6">
-      {/* Refresh Button */}
-      <div className="flex justify-end">
+      {/* Controls */}
+      <div className="flex justify-end gap-3 items-center">
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+        >
+          <option value="7">Last 7 Days</option>
+          <option value="14">Last 14 Days</option>
+          <option value="30">Last 30 Days</option>
+          <option value="all">All Time</option>
+        </select>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
